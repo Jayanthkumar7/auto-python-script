@@ -25,6 +25,6 @@ jobs:
 
       - name: Run marine data script
         env:
-          CMEMS_USERNAME: ${{ secrets.CMEMS_USERNAME }}
-          CMEMS_PASSWORD: ${{ secrets.CMEMS_PASSWORD }}
+          CMEMS_USERNAME: ${{ swaran.rekulapally@gmail.com }}
+          CMEMS_PASSWORD: ${{ Swaran@2005 }}
         run: python run.py
