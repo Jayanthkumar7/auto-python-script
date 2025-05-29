@@ -186,32 +186,34 @@ class data_retrival_testing():
     from tqdm import tqdm
     import time
 
-    # Ensure 'time' is datetime
+    print("🔄 Converting time column to datetime...")
     self.final_df['time'] = pd.to_datetime(self.final_df['time'])
 
-    # Set API delay
-    delay = 1  # 1 request per second is safe
-
-    # Prepare list for wave data
+    delay = 1  # seconds
     wave_data_records = []
 
-    # Unique lat-lon pairs
+    print("📍 Extracting unique lat/lon points...")
     unique_points = self.final_df[['latitude', 'longitude']].drop_duplicates()
 
-    # Loop over each point
-    for _, row in tqdm(unique_points.iterrows(), total=unique_points.shape[0]):
+    print(f"🌐 Fetching Open-Meteo wave height data for {len(unique_points)} locations...")
+
+    for idx, row in tqdm(unique_points.iterrows(), total=unique_points.shape[0], desc="Fetching Wave Height"):
         lat = row['latitude']
         lon = row['longitude']
 
-        # Filter original data for time range
-        location_df = self.final_df[(self.final_df['latitude'] == lat) & (self.final_df['longitude'] == lon)]
-        start_time = location_df['time'].min().strftime("%Y-%m-%d")
-        end_time = location_df['time'].max().strftime("%Y-%m-%d")
-
-        # API request
-        url = f"https://marine-api.open-meteo.com/v1/marine?latitude={lat}&longitude={lon}&hourly=wave_height&start_date={start_time}&end_date={end_time}&timezone=auto"
-
         try:
+            location_df = self.final_df[(self.final_df['latitude'] == lat) & (self.final_df['longitude'] == lon)]
+            start_time = location_df['time'].min().strftime("%Y-%m-%d")
+            end_time = location_df['time'].max().strftime("%Y-%m-%d")
+
+            url = (
+                f"https://marine-api.open-meteo.com/v1/marine?"
+                f"latitude={lat}&longitude={lon}"
+                f"&hourly=wave_height&start_date={start_time}&end_date={end_time}&timezone=auto"
+            )
+
+            print(f"🌊 [{idx+1}/{len(unique_points)}] Requesting wave data for ({lat:.2f}, {lon:.2f}) from {start_time} to {end_time}...")
+
             response = requests.get(url)
             response.raise_for_status()
             data = response.json()
@@ -227,23 +229,29 @@ class data_retrival_testing():
                         'time': t,
                         'wave_height': h
                     })
+            else:
+                print(f"⚠️  No wave data found for ({lat}, {lon}).")
 
         except Exception as e:
-            print(f"Failed for {lat}, {lon}: {e}")
+            print(f"❌ Error at ({lat}, {lon}): {e}")
 
         time.sleep(delay)
-    # Convert collected wave data to DataFrame
+
+    print("📊 Converting wave data to DataFrame...")
     wave_df = pd.DataFrame(wave_data_records)
 
-    # Ensure time columns are datetime
-    wave_df['time'] = pd.to_datetime(wave_df['time'])
+    print("🧬 Merging wave height with original DataFrame...")
     self.final_df['time'] = pd.to_datetime(self.final_df['time'])
+    wave_df['time'] = pd.to_datetime(wave_df['time'])
 
-    # Merge wave height into original DataFrame
     self.final_df = pd.merge(self.final_df, wave_df, on=['latitude', 'longitude', 'time'], how='left')
     self.final_df['time'] = pd.to_datetime(self.final_df['time'])
-    self.final_df.dropna(inplace = True)
-    self.final_df.reset_index(inplace = True,drop = True)
+
+    print("🧹 Dropping rows with missing wave height...")
+    self.final_df.dropna(inplace=True)
+    self.final_df.reset_index(drop=True, inplace=True)
+
+    print("✅ Wave height data integration complete!")
 
   def to_google_sheets(self, spreadsheet_name='Marine_Observation', worksheet_name='Weekly_Report'):
     import pandas as pd
