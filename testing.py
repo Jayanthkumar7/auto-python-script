@@ -183,75 +183,83 @@ class data_retrival_testing():
   def get_open_meteo_data(self):
     import requests
     import pandas as pd
-    from tqdm import tqdm
     import time
 
-    print("🔄 Converting time column to datetime...")
+    # Ensure 'time' is datetime
     self.final_df['time'] = pd.to_datetime(self.final_df['time'])
 
-    delay = 1  # seconds
+    # API request delay (1 per second is safe for Open-Meteo)
+    delay = 1  
+
+    # Store wave data
     wave_data_records = []
 
-    print("📍 Extracting unique lat/lon points...")
+    # Unique lat-lon points
     unique_points = self.final_df[['latitude', 'longitude']].drop_duplicates()
 
-    print(f"🌐 Fetching Open-Meteo wave height data for {len(unique_points)} locations...")
+    print(f"📍 Extracted {len(unique_points)} unique lat/lon points")
+    print(f"🌐 Fetching Open-Meteo wave height data...")
 
-    for idx, row in tqdm(unique_points.iterrows(), total=unique_points.shape[0], desc="Fetching Wave Height"):
+    # Loop over each point
+    for index, row in unique_points.iterrows():
         lat = row['latitude']
         lon = row['longitude']
 
-        try:
-            location_df = self.final_df[(self.final_df['latitude'] == lat) & (self.final_df['longitude'] == lon)]
-            start_time = location_df['time'].min().strftime("%Y-%m-%d")
-            end_time = location_df['time'].max().strftime("%Y-%m-%d")
+        print(f"➡️ [{index + 1}/{len(unique_points)}] Fetching data for ({lat}, {lon})")
 
-            url = (
-                f"https://marine-api.open-meteo.com/v1/marine?"
-                f"latitude={lat}&longitude={lon}"
-                f"&hourly=wave_height&start_date={start_time}&end_date={end_time}&timezone=auto"
-            )
+        location_df = self.final_df[(self.final_df['latitude'] == lat) & (self.final_df['longitude'] == lon)]
+        start_time = location_df['time'].min().strftime("%Y-%m-%d")
+        end_time = location_df['time'].max().strftime("%Y-%m-%d")
 
-            print(f"🌊 [{idx+1}/{len(unique_points)}] Requesting wave data for ({lat:.2f}, {lon:.2f}) from {start_time} to {end_time}...")
+        url = (
+            f"https://marine-api.open-meteo.com/v1/marine?"
+            f"latitude={lat}&longitude={lon}&hourly=wave_height&"
+            f"start_date={start_time}&end_date={end_time}&timezone=auto"
+        )
 
-            response = requests.get(url)
-            response.raise_for_status()
-            data = response.json()
+        # Retry mechanism
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                response = requests.get(url, timeout=10)
+                response.raise_for_status()
+                data = response.json()
 
-            if 'hourly' in data and 'time' in data['hourly']:
-                times = pd.to_datetime(data['hourly']['time'])
-                heights = data['hourly']['wave_height']
+                if 'hourly' in data and 'time' in data['hourly']:
+                    times = pd.to_datetime(data['hourly']['time'])
+                    heights = data['hourly']['wave_height']
 
-                for t, h in zip(times, heights):
-                    wave_data_records.append({
-                        'latitude': lat,
-                        'longitude': lon,
-                        'time': t,
-                        'wave_height': h
-                    })
-            else:
-                print(f"⚠️  No wave data found for ({lat}, {lon}).")
+                    for t, h in zip(times, heights):
+                        wave_data_records.append({
+                            'latitude': lat,
+                            'longitude': lon,
+                            'time': t,
+                            'wave_height': h
+                        })
 
-        except Exception as e:
-            print(f"❌ Error at ({lat}, {lon}): {e}")
+                print(f"✅ Data received for ({lat}, {lon})")
+                break  # Exit retry loop on success
 
+            except Exception as e:
+                print(f"⚠️ Attempt {attempt + 1} failed for ({lat}, {lon}): {e}")
+                if attempt < max_retries - 1:
+                    print("🔁 Retrying in 3 seconds...")
+                    time.sleep(3)
+                else:
+                    print(f"❌ Failed after {max_retries} attempts for ({lat}, {lon})")
+
+        # Delay between API calls
         time.sleep(delay)
 
-    print("📊 Converting wave data to DataFrame...")
+    # Convert collected wave data to DataFrame
     wave_df = pd.DataFrame(wave_data_records)
-
-    print("🧬 Merging wave height with original DataFrame...")
-    self.final_df['time'] = pd.to_datetime(self.final_df['time'])
     wave_df['time'] = pd.to_datetime(wave_df['time'])
 
+    # Merge with main DataFrame
     self.final_df = pd.merge(self.final_df, wave_df, on=['latitude', 'longitude', 'time'], how='left')
-    self.final_df['time'] = pd.to_datetime(self.final_df['time'])
-
-    print("🧹 Dropping rows with missing wave height...")
     self.final_df.dropna(inplace=True)
     self.final_df.reset_index(drop=True, inplace=True)
-
-    print("✅ Wave height data integration complete!")
+    print("✅ Wave height data merged successfully.")
 
   def to_google_sheets(self, spreadsheet_name='Marine_Observation', worksheet_name='Weekly_Report'):
     import pandas as pd
