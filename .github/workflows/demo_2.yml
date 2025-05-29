@@ -23,9 +23,9 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Write Google credentials to file
-        run: |
-          echo "${{ secrets.GOOGLE_CREDENTIALS }}" > credentials.json
+      - name: Write credentials.json
+        run: echo "${{ secrets.GSHEET_CREDENTIALS }}" | base64 -d > credentials.json
+
 
       - name: Run marine data script
         env:
