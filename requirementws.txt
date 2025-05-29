@@ -1,8 +1,0 @@
-copernicusmarine
-gspread
-gspread_dataframe
-pandas
-xarray
-requests
-oauth2client
-tqdm
