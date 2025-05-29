@@ -1,5 +1,5 @@
 class data_retrival_testing():
-
+    
   def __init__(self,start_date,end_date):
     from datetime import datetime
     self.start_date = datetime.strptime(start_date, '%Y-%m-%d')
