@@ -6,3 +6,7 @@ xarray
 requests
 oauth2client
 tqdm
+gspread
+gspread-dataframe
+oauth2client
+google-api-python-client
