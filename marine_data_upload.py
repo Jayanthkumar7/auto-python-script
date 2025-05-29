@@ -179,7 +179,7 @@ class data_retrival_testing():
         self. final_df.sort_values(by="time", inplace=True)
     else:
         print("⚠️ No data was fetched. Check credentials or dataset availability.")
-
+    self.cleanup_nc_files()
   def get_open_meteo_data(self):
     import requests
     import pandas as pd
@@ -245,8 +245,7 @@ class data_retrival_testing():
     self.final_df.dropna(inplace = True)
     self.final_df.reset_index(inplace = True,drop = True)
 
-
-    def to_google_sheets(self, spreadsheet_name='Marine_Observation', worksheet_name='Weekly_Report'):
+  def to_google_sheets(self, spreadsheet_name='Marine_Observation', worksheet_name='Weekly_Report'):
         import pandas as pd
         import gspread
         from gspread_dataframe import set_with_dataframe
@@ -287,7 +286,7 @@ class data_retrival_testing():
         print(f"✅ Data uploaded to '{spreadsheet_name}' ➝ Sheet: '{worksheet_name}'")
         print(f"🔗 URL: {spreadsheet.url}")
         
-    def cleanup_nc_files(self):
+  def cleanup_nc_files(self):
         import os
         import glob
 
