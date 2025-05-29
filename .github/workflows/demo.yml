@@ -1,17 +1,30 @@
-name: Demo Workflow
+name: Daily Marine Data Job
 
 on:
-  push:
-    branches:
-      - main  # or master, whichever branch you use
+  schedule:
+    - cron: "0 3 * * *"  # Runs daily at 3:00 AM UTC
+  workflow_dispatch:  # Allows manual triggering
 
 jobs:
-  build:
+  run-script:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout repo
-      uses: actions/checkout@v3
-      
-    - name: Say hello
-      run: echo "Hello from GitHub Actions!"
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run marine data script
+        env:
+          CMEMS_USERNAME: ${{ secrets.CMEMS_USERNAME }}
+          CMEMS_PASSWORD: ${{ secrets.CMEMS_PASSWORD }}
+        run: python run.py
