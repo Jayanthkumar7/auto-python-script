@@ -39,7 +39,7 @@ class data_retrival_testing():
     phy_depth = 0.49402499198913574
     bgc_depth = 0.4940253794193268
     # Updated time slots to include 08:00, 12:00, 16:00, and 20:00
-    time_slots = ["08:00:00", "12:00:00", "16:00:00", "20:00:00"]
+    time_slots = ["03:00:00", "07:00:00", "11:00:00", "15:00:00"]
 
 
     ports = [
@@ -175,7 +175,8 @@ class data_retrival_testing():
     # 💾 Step 7: Combine and save to CSV
     if all_dfs:
         final_df = pd.concat(all_dfs)
-        self.final_df = final_df
+        self.final_df = final_df    
+        self.final_df['time'] = pd.to_datetime(self.final_df['time'])
         self. final_df.sort_values(by="time", inplace=True)
     else:
         print("⚠️ No data was fetched. Check credentials or dataset availability.")
@@ -257,6 +258,11 @@ class data_retrival_testing():
 
     # Merge with main DataFrame
     self.final_df = pd.merge(self.final_df, wave_df, on=['latitude', 'longitude', 'time'], how='left')
+    self.final_df['time'] = pd.to_datetime(self.final_df['time']).dt.tz_localize('UTC').dt.tz_convert('Asia/Kolkata')
+    self.final_df['Time'] = self.final_df['time'].dt.strftime('%H:%M:%S')
+    self.final_df['Date'] = self.final_df['time'].dt.strftime('%d/%m/%Y')
+    self.final_df.drop(columns=['time'], inplace=True)
+    print("🧹 Dropping rows with missing wave height...")
     self.final_df.dropna(inplace=True)
     self.final_df.reset_index(drop=True, inplace=True)
     print("✅ Wave height data merged successfully.")
@@ -292,7 +298,7 @@ class data_retrival_testing():
     try:
         drive_service = build('drive', 'v3', credentials=creds)
         file_id = spreadsheet.id
-        user_emails = ['swaran.rekulapally@gmail.com', 'jnallaga@gitam.in']
+        user_emails = ['swaran.rekulapally@gmail.com', 'jnallaga@gitam.in','srekulap@gitam.in']
 
         for email in user_emails:
             permission = {
