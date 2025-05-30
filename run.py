@@ -6,7 +6,7 @@ def main():
     end_date = datetime.today().strftime('%Y-%m-%d')
 
     # 📅 8 days before today
-    start_date = (datetime.today() - timedelta(days=8)).strftime('%Y-%m-%d')
+    start_date = (datetime.today() - timedelta(days=7)).strftime('%Y-%m-%d')
 
     # ✅ Initialize and run all steps
     obj = data_retrival_testing(start_date=start_date, end_date=end_date)

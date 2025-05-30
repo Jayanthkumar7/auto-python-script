@@ -1,5 +1,5 @@
 class data_retrival_testing():
-
+    
   def __init__(self,start_date,end_date):
     from datetime import datetime
     self.start_date = datetime.strptime(start_date, '%Y-%m-%d')
@@ -39,7 +39,7 @@ class data_retrival_testing():
     phy_depth = 0.49402499198913574
     bgc_depth = 0.4940253794193268
     # Updated time slots to include 08:00, 12:00, 16:00, and 20:00
-    time_slots = ["08:00:00", "12:00:00", "16:00:00", "20:00:00"]
+    time_slots = ["03:00:00", "07:00:00", "11:00:00", "15:00:00"]
 
 
     ports = [
@@ -175,7 +175,8 @@ class data_retrival_testing():
     # 💾 Step 7: Combine and save to CSV
     if all_dfs:
         final_df = pd.concat(all_dfs)
-        self.final_df = final_df
+        self.final_df = final_df    
+        self.final_df['time'] = pd.to_datetime(self.final_df['time'])
         self. final_df.sort_values(by="time", inplace=True)
     else:
         print("⚠️ No data was fetched. Check credentials or dataset availability.")
@@ -183,67 +184,88 @@ class data_retrival_testing():
   def get_open_meteo_data(self):
     import requests
     import pandas as pd
-    from tqdm import tqdm
     import time
 
     # Ensure 'time' is datetime
     self.final_df['time'] = pd.to_datetime(self.final_df['time'])
 
-    # Set API delay
-    delay = 1  # 1 request per second is safe
+    # API request delay (1 per second is safe for Open-Meteo)
+    delay = 1  
 
-    # Prepare list for wave data
+    # Store wave data
     wave_data_records = []
 
-    # Unique lat-lon pairs
+    # Unique lat-lon points
     unique_points = self.final_df[['latitude', 'longitude']].drop_duplicates()
 
+    print(f"📍 Extracted {len(unique_points)} unique lat/lon points")
+    print(f"🌐 Fetching Open-Meteo wave height data...")
+
     # Loop over each point
-    for _, row in tqdm(unique_points.iterrows(), total=unique_points.shape[0]):
+    for index, row in unique_points.iterrows():
         lat = row['latitude']
         lon = row['longitude']
 
-        # Filter original data for time range
+        print(f"➡️ [{index + 1}/{len(unique_points)}] Fetching data for ({lat}, {lon})")
+
         location_df = self.final_df[(self.final_df['latitude'] == lat) & (self.final_df['longitude'] == lon)]
         start_time = location_df['time'].min().strftime("%Y-%m-%d")
         end_time = location_df['time'].max().strftime("%Y-%m-%d")
 
-        # API request
-        url = f"https://marine-api.open-meteo.com/v1/marine?latitude={lat}&longitude={lon}&hourly=wave_height&start_date={start_time}&end_date={end_time}&timezone=auto"
+        url = (
+            f"https://marine-api.open-meteo.com/v1/marine?"
+            f"latitude={lat}&longitude={lon}&hourly=wave_height&"
+            f"start_date={start_time}&end_date={end_time}&timezone=auto"
+        )
 
-        try:
-            response = requests.get(url)
-            response.raise_for_status()
-            data = response.json()
+        # Retry mechanism
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                response = requests.get(url, timeout=10)
+                response.raise_for_status()
+                data = response.json()
 
-            if 'hourly' in data and 'time' in data['hourly']:
-                times = pd.to_datetime(data['hourly']['time'])
-                heights = data['hourly']['wave_height']
+                if 'hourly' in data and 'time' in data['hourly']:
+                    times = pd.to_datetime(data['hourly']['time'])
+                    heights = data['hourly']['wave_height']
 
-                for t, h in zip(times, heights):
-                    wave_data_records.append({
-                        'latitude': lat,
-                        'longitude': lon,
-                        'time': t,
-                        'wave_height': h
-                    })
+                    for t, h in zip(times, heights):
+                        wave_data_records.append({
+                            'latitude': lat,
+                            'longitude': lon,
+                            'time': t,
+                            'wave_height': h
+                        })
 
-        except Exception as e:
-            print(f"Failed for {lat}, {lon}: {e}")
+                print(f"✅ Data received for ({lat}, {lon})")
+                break  # Exit retry loop on success
 
+            except Exception as e:
+                print(f"⚠️ Attempt {attempt + 1} failed for ({lat}, {lon}): {e}")
+                if attempt < max_retries - 1:
+                    print("🔁 Retrying in 3 seconds...")
+                    time.sleep(3)
+                else:
+                    print(f"❌ Failed after {max_retries} attempts for ({lat}, {lon})")
+
+        # Delay between API calls
         time.sleep(delay)
+
     # Convert collected wave data to DataFrame
     wave_df = pd.DataFrame(wave_data_records)
-
-    # Ensure time columns are datetime
     wave_df['time'] = pd.to_datetime(wave_df['time'])
-    self.final_df['time'] = pd.to_datetime(self.final_df['time'])
 
-    # Merge wave height into original DataFrame
+    # Merge with main DataFrame
     self.final_df = pd.merge(self.final_df, wave_df, on=['latitude', 'longitude', 'time'], how='left')
-    self.final_df['time'] = pd.to_datetime(self.final_df['time'])
-    self.final_df.dropna(inplace = True)
-    self.final_df.reset_index(inplace = True,drop = True)
+    self.final_df['time'] = pd.to_datetime(self.final_df['time']).dt.tz_localize('UTC').dt.tz_convert('Asia/Kolkata')
+    self.final_df['Time'] = self.final_df['time'].dt.strftime('%H:%M:%S')
+    self.final_df['Date'] = self.final_df['time'].dt.strftime('%d/%m/%Y')
+    self.final_df.drop(columns=['time'], inplace=True)
+    print("🧹 Dropping rows with missing wave height...")
+    self.final_df.dropna(inplace=True)
+    self.final_df.reset_index(drop=True, inplace=True)
+    print("✅ Wave height data merged successfully.")
 
   def to_google_sheets(self, spreadsheet_name='Marine_Observation', worksheet_name='Weekly_Report'):
     import pandas as pd
@@ -276,7 +298,7 @@ class data_retrival_testing():
     try:
         drive_service = build('drive', 'v3', credentials=creds)
         file_id = spreadsheet.id
-        user_emails = ['swaran.rekulapally@gmail.com', 'jnallaga@gitam.in']
+        user_emails = ['swaran.rekulapally@gmail.com', 'jnallaga@gitam.in','srekulap@gitam.in']
 
         for email in user_emails:
             permission = {
